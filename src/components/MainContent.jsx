@@ -15,15 +15,29 @@ export default function MainContent() {
         setLoading(true)
         setError(null)
 
-        const res = await fetch('https://ckps-api.onrender.com/api/signals')
+        const res = await fetch('http://localhost:8000/api/signals')
         if (!res.ok) {
           throw new Error(`HTTP ${res.status}`)
         }
         const data = await res.json()
         if (!isMounted) return
 
-        setCandles(Array.isArray(data.candles) ? data.candles : [])
-        setSignals(Array.isArray(data.signals) ? data.signals : [])
+        const rawCandles = Array.isArray(data.candles) ? data.candles : []
+        const rawSignals = Array.isArray(data.signals) ? data.signals : []
+
+        // Chuẩn hóa thời gian intraday sang Unix timestamp (giây) cho lightweight-charts
+        const normalizedCandles = rawCandles.map((candle) => ({
+          ...candle,
+          time: Math.floor(new Date(candle.time).getTime() / 1000),
+        }))
+
+        const normalizedSignals = rawSignals.map((sig) => ({
+          ...sig,
+          time: Math.floor(new Date(sig.timestamp).getTime() / 1000),
+        }))
+
+        setCandles(normalizedCandles)
+        setSignals(normalizedSignals)
       } catch (err) {
         if (!isMounted) return
         setError(err.message || 'Lỗi khi tải dữ liệu')

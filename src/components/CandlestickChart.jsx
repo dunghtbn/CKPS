@@ -27,10 +27,18 @@ function signalsToMarkers(signals = [], timeType = 'day') {
   return signals.map((s, i) => {
     const style = MARKER[s.signal]
     if (!style) return null
-    const date = new Date(s.timestamp)
-    const time = timeType === 'unix'
-      ? Math.floor(date.getTime() / 1000)
-      : date.toISOString().slice(0, 10)
+
+    let time
+    if (typeof s.time === 'number') {
+      // Đã chuẩn hóa ở phía ngoài (Unix giây)
+      time = s.time
+    } else {
+      const date = new Date(s.timestamp ?? s.time)
+      time =
+        timeType === 'unix'
+          ? Math.floor(date.getTime() / 1000)
+          : date.toISOString().slice(0, 10)
+    }
     const price = typeof s.price === 'number' ? s.price : parseFloat(s.price)
     const label = Number.isInteger(price) ? price : price.toFixed(1)
     return {
