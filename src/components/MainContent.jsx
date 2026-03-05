@@ -15,7 +15,7 @@ export default function MainContent() {
         setLoading(true)
         setError(null)
 
-        const res = await fetch('http://localhost:8000/api/signals')
+        const res = await fetch('https://ckps-api.onrender.com/api/signals')
         if (!res.ok) {
           throw new Error(`HTTP ${res.status}`)
         }
