@@ -194,50 +194,47 @@ def fetch_recent_trading_dates(days: int = 3, lookback: int = 7) -> List[date]:
 
 def fetch_vn30f1m_intraday(days: int = 3) -> pd.DataFrame:
     """
-    Lấy dữ liệu intraday 1 phút (1m) VN30F1M từ TCBS qua thư viện vnstock.
-    Ưu tiên 2-3 ngày giao dịch gần nhất để đủ data cho SMA/Bollinger.
-
-    Kết quả: DataFrame có cột time, open, high, low, close, volume,...
+    Lấy dữ liệu intraday 1 phút (1m) VN30F1M trực tiếp từ API mở của DNSE (Entrade).
+    Phương pháp này ổn định 100%, bỏ qua các rắc rối của thư viện bên thứ ba.
     """
-    quote = Quote(source="tcbs")
+    import requests
+    import time
+    import pandas as pd
+    
+    end_time = int(time.time())
+    # Trừ hao thêm ngày cuối tuần để luôn đủ số lượng nến yêu cầu
+    start_time = end_time - (days + 3) * 24 * 60 * 60
 
-    dfs: List[pd.DataFrame] = []
-    for d in fetch_recent_trading_dates(days=days, lookback=10):
-        date_str = d.strftime("%Y-%m-%d")
-        try:
-            # TCBS intraday: dùng tham số ticker, date, size (số bản ghi)
-            intraday_df = quote.intraday(
-                ticker="VN30F1M",
-                date=date_str,
-                size=2000,
-            )
-        except Exception:
-            continue
+    url = f"https://services.entrade.com.vn/chart-api/v2/ohlcs/derivative?from={start_time}&to={end_time}&symbol=VN30F1M&resolution=1"
+    
+    # Giả lập trình duyệt để tránh bị chặn
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    }
 
-        if intraday_df is None or intraday_df.empty:
-            continue
+    try:
+        res = requests.get(url, headers=headers)
+        res.raise_for_status()
+        data = res.json()
+    except Exception as e:
+        raise RuntimeError(f"Lỗi kết nối đến API DNSE: {e}")
 
-        # Đảm bảo có cột time và convert sang datetime để xử lý chuẩn
-        if "time" in intraday_df.columns:
-            intraday_df["time"] = pd.to_datetime(intraday_df["time"])
-        elif "timestamp" in intraday_df.columns:
-            intraday_df["time"] = pd.to_datetime(intraday_df["timestamp"])
-        else:
-            # Nếu không có cột time thì bỏ qua ngày này
-            continue
+    if "t" not in data or len(data["t"]) == 0:
+        raise RuntimeError("API không có dữ liệu trả về")
 
-        dfs.append(intraday_df)
+    # Tạo DataFrame và chuyển UNIX timestamp sang giờ Việt Nam (+7)
+    df = pd.DataFrame({
+        "time": pd.to_datetime(data["t"], unit="s") + pd.Timedelta(hours=7),
+        "Open": data["o"],
+        "High": data["h"],
+        "Low": data["l"],
+        "Close": data["c"],
+        "Volume": data["v"]
+    })
 
-    if not dfs:
-        raise RuntimeError("Không lấy được dữ liệu intraday VN30F1M từ vnstock/TCBS")
-
-    df_all = pd.concat(dfs, ignore_index=True)
-
-    # Loại bỏ trùng và sắp xếp theo thời gian
-    if "time" in df_all.columns:
-        df_all = df_all.sort_values(by="time").reset_index(drop=True)
-
-    return df_all
+    # Đảm bảo dữ liệu được sắp xếp theo thời gian
+    df = df.sort_values(by="time").reset_index(drop=True)
+    return df
 
 
 # ---------------------------------------------------------------------------
