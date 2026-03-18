@@ -25,15 +25,20 @@ export default function MainContent() {
         const rawCandles = Array.isArray(data.candles) ? data.candles : []
         const rawSignals = Array.isArray(data.signals) ? data.signals : []
 
-        // Chuẩn hóa thời gian intraday sang Unix timestamp (giây) cho lightweight-charts
+        // Bù timezone local để lightweight-charts hiển thị đúng giờ trình duyệt
+        const toLocalUnixSeconds = (value) => {
+          const date = new Date(value)
+          return (date.getTime() - date.getTimezoneOffset() * 60000) / 1000
+        }
+
         const normalizedCandles = rawCandles.map((candle) => ({
           ...candle,
-          time: Math.floor(new Date(candle.time).getTime() / 1000),
+          time: toLocalUnixSeconds(candle.time ?? candle.timestamp),
         }))
 
         const normalizedSignals = rawSignals.map((sig) => ({
           ...sig,
-          time: Math.floor(new Date(sig.timestamp).getTime() / 1000),
+          time: toLocalUnixSeconds(sig.timestamp ?? sig.time),
         }))
 
         setCandles(normalizedCandles)
